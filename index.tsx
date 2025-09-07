@@ -239,7 +239,6 @@ function StoryViewer({ story, currentSceneIndex, setCurrentSceneIndex, onStartOv
 }) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [hasPlayedOnce, setHasPlayedOnce] = useState(false);
-  const [isDownloading, setIsDownloading] = useState(false);
   
   const scene = story[currentSceneIndex];
   const totalScenes = story.length;
@@ -285,107 +284,6 @@ function StoryViewer({ story, currentSceneIndex, setCurrentSceneIndex, onStartOv
     };
   }, [story]); // Rerun only when the story itself changes
 
-  const handleDownloadVideo = async () => {
-      setIsDownloading(true);
-      try {
-        const canvas = document.createElement('canvas');
-        // Define video dimensions - using a standard 16:9 aspect ratio
-        const videoWidth = 1280;
-        const videoHeight = 720;
-        canvas.width = videoWidth;
-        canvas.height = videoHeight;
-
-        const stream = canvas.captureStream(30); // 30 FPS
-        const recorder = new MediaRecorder(stream, { mimeType: 'video/webm; codecs=vp9' });
-        
-        const chunks: Blob[] = [];
-        recorder.ondataavailable = (e) => e.data.size > 0 && chunks.push(e.data);
-        recorder.onstop = () => {
-            const blob = new Blob(chunks, { type: 'video/mp4' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = 'ai-story.mp4';
-            document.body.appendChild(a);
-            a.click();
-            window.URL.revokeObjectURL(url);
-            document.body.removeChild(a);
-        };
-
-        const ctx = canvas.getContext('2d');
-        if (!ctx) throw new Error("Could not get canvas context");
-
-        const loadImage = (url: string): Promise<HTMLImageElement> => new Promise((resolve, reject) => {
-            const img = new Image();
-            img.crossOrigin = 'anonymous';
-            img.onload = () => resolve(img);
-            img.onerror = reject;
-            img.src = url;
-        });
-
-        recorder.start();
-        
-        const SCENE_DURATION_MS = 5000; // 5 seconds per scene
-
-        for (const scene of story) {
-            const img = await loadImage(scene.imageUrl);
-            
-            // Draw image scaled to fit canvas
-            ctx.fillStyle = '#000';
-            ctx.fillRect(0, 0, videoWidth, videoHeight);
-            const imgAspectRatio = img.width / img.height;
-            const canvasAspectRatio = videoWidth / videoHeight;
-            let drawWidth, drawHeight, offsetX, offsetY;
-            
-            if (imgAspectRatio > canvasAspectRatio) {
-                drawWidth = videoWidth;
-                drawHeight = videoWidth / imgAspectRatio;
-            } else {
-                drawHeight = videoHeight;
-                drawWidth = videoHeight * imgAspectRatio;
-            }
-            offsetX = (videoWidth - drawWidth) / 2;
-            offsetY = (videoHeight - drawHeight) / 2;
-            ctx.drawImage(img, offsetX, offsetY, drawWidth, drawHeight);
-
-            // Draw text overlay
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
-            ctx.fillRect(0, videoHeight - 150, videoWidth, 150);
-            ctx.fillStyle = 'white';
-            ctx.font = '32px Poppins';
-            ctx.textAlign = 'center';
-            wrapText(ctx, scene.text, videoWidth / 2, videoHeight - 90, videoWidth - 40, 40);
-
-            await new Promise(resolve => setTimeout(resolve, SCENE_DURATION_MS));
-        }
-
-        recorder.stop();
-      } catch (err) {
-        console.error("Failed to generate video:", err);
-        alert("Could not generate video. See console for details.");
-      } finally {
-        setIsDownloading(false);
-      }
-  };
-
-  const wrapText = (context: CanvasRenderingContext2D, text: string, x: number, y: number, maxWidth: number, lineHeight: number) => {
-      const words = text.split(' ');
-      let line = '';
-      for (let n = 0; n < words.length; n++) {
-          const testLine = line + words[n] + ' ';
-          const metrics = context.measureText(testLine);
-          const testWidth = metrics.width;
-          if (testWidth > maxWidth && n > 0) {
-              context.fillText(line, x, y);
-              line = words[n] + ' ';
-              y += lineHeight;
-          } else {
-              line = testLine;
-          }
-      }
-      context.fillText(line, x, y);
-  };
-
   const onNext = () => setCurrentSceneIndex(i => Math.min(i + 1, totalScenes - 1));
   const onPrev = () => setCurrentSceneIndex(i => Math.max(i - 1, 0));
 
@@ -401,9 +299,6 @@ function StoryViewer({ story, currentSceneIndex, setCurrentSceneIndex, onStartOv
             ${!isPlaying && hasPlayedOnce ? html`
               <div class="post-playback-controls">
                 <button onClick=${() => playStory(0)} class="btn btn-primary" aria-label="Play story again">Play Again</button>
-                <button onClick=${handleDownloadVideo} class="btn btn-secondary" disabled=${isDownloading}>
-                    ${isDownloading ? 'Generating Video...' : 'Download Video'}
-                </button>
               </div>
             ` : html`
                 <button onClick=${onPrev} disabled=${currentSceneIndex === 0 || isPlaying} class="btn btn-secondary" aria-label="Previous scene">Previous</button>
