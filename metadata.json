@@ -1,0 +1,5 @@
+{
+  "name": "Copy of AI Illustrated Story Generator",
+  "description": "Generate short, illustrated stories with voice narration from a user's prompt using the Gemini API.",
+  "requestFramePermissions": []
+}
